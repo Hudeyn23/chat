@@ -2,7 +2,7 @@ package main;
 
 public class Message {
     public enum MessageType {
-        LOGIN, MESSAGE, INFO, ERROR, REQUEST , LOGOUT;
+        LOGIN, MESSAGE, INFO, REQUEST , LOGOUT;
     }
 
     MessageType type;
