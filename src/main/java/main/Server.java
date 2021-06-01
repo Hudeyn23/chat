@@ -5,8 +5,11 @@ import com.google.gson.Gson;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.LinkedList;
 
 /**
@@ -24,6 +27,14 @@ class ServerSomthing extends Thread {
     private ObjectInputStream in; // поток чтения из сокета
     private ObjectOutputStream out; // поток завписи в сокет
     private Gson gson = new Gson();
+    private String nickname;
+    Date time;
+    SimpleDateFormat dt1 = new SimpleDateFormat("HH:mm:ss");
+    String dtime;
+
+    public String getNickname() {
+        return nickname;
+    }
 
     /**
      * для общения с клиентом необходим сокет (адресные данные)
@@ -43,19 +54,49 @@ class ServerSomthing extends Thread {
 
     @Override
     public void run() {
-        String word;
+        String json;
         try {
-            // первое сообщение отправленное сюда - это никнейм
             try {
                 while (true) {
-                    word = in.readUTF();
-                    if (word.equals("stop")) {
+                    json = in.readUTF();
+                    Message message = gson.fromJson(json, Message.class);
+                    Message sendMessage;
+                    String sendJson;
+                    if (message.getType() == Message.MessageType.LOGIN) {
+                        nickname = message.getBody();
+                        sendMessage = new Message(Message.MessageType.INFO, "Hello " + nickname);
+                        sendJson = gson.toJson(sendMessage);
+                        sendAll(sendJson);
+                    }
+                    if (message.getType() == Message.MessageType.REQUEST) {
+                        StringBuilder userList = new StringBuilder();
+                        for (ServerSomthing vr : Server.serverList) {
+                            userList.append(vr.getNickname() + "\n");
+                        }
+                        sendMessage = new Message(Message.MessageType.INFO, userList.toString());
+                        sendJson = gson.toJson(sendMessage);
+                        send(sendJson);
+                    }
+                    if (message.getType() == Message.MessageType.MESSAGE) {
+                        time = new Date(); // текущая дата
+                        dtime = dt1.format(time); // время
+                        sendMessage = new Message(Message.MessageType.MESSAGE, dtime + " " + nickname + " " + message.getBody());
+                        sendJson = gson.toJson(sendMessage);
+                        sendAll(sendJson);
+                    }
+                    if (message.getType() == Message.MessageType.LOGOUT) {
+                        time = new Date(); // текущая дата
+                        dtime = dt1.format(time); // время
+                        sendMessage = new Message(Message.MessageType.INFO, dtime + " " + nickname + " " + "left the chat");
+                        sendJson = gson.toJson(sendMessage);
+                        Server.serverList.remove(this);
+                        this.socket.close();
+                        sendAll(sendJson);
+                        break;
+                    }
+                    if (json.equals("stop")) {
                         this.downService(); // харакири
                         break; // если пришла пустая строка - выходим из цикла прослушки
-                    }
-                    System.out.println("Echoing: " + word);
-                    for (ServerSomthing vr : Server.serverList) {
-                        vr.send(word); // отослать принятое сообщение с привязанного клиента всем остальным влючая его
                     }
                 }
             } catch (NullPointerException ignored) {
@@ -67,11 +108,12 @@ class ServerSomthing extends Thread {
         }
     }
 
-    /**
-     * отсылка одного сообщения клиенту по указанному потоку
-     *
-     * @param msg
-     */
+    private void sendAll(String json) {
+        for (ServerSomthing vr : Server.serverList) {
+            vr.send(json); // отослать принятое сообщение с привязанного клиента всем остальным влючая его
+        }
+    }
+
     private void send(String msg) {
         try {
             out.writeUTF(msg + "\n");
@@ -119,7 +161,7 @@ public class Server {
      */
 
     public static void main(String[] args) throws IOException {
-        ServerSocket server = new ServerSocket(PORT);
+        ServerSocket server = new ServerSocket(6770,50, InetAddress.getByName("192.168.31.169"));
         System.out.println("Server Started");
         try {
             while (true) {

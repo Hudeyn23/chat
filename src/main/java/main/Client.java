@@ -24,6 +24,7 @@ class ClientSomthing {
     private String dtime;
     private SimpleDateFormat dt1;
     private Gson gson = new Gson();
+
     /**
      * для создания необходимо принять адрес и номер порта
      *
@@ -66,7 +67,8 @@ class ClientSomthing {
         System.out.print("Press your nick: ");
         try {
             nickname = inputUser.readLine();
-            out.writeUTF("Hello " + nickname + "\n");
+            String json = gson.toJson(new Message(Message.MessageType.LOGIN, nickname));
+            out.writeUTF(json);
             out.flush();
         } catch (IOException ignored) {
         }
@@ -91,16 +93,16 @@ class ClientSomthing {
     private class ReadMsg extends Thread {
         @Override
         public void run() {
-
             String str;
             try {
                 while (true) {
                     str = in.readUTF(); // ждем сообщения с сервера
+                    Message message = gson.fromJson(str, Message.class);
                     if (str.equals("stop")) {
                         ClientSomthing.this.downService(); // харакири
                         break; // выходим из цикла если пришло "stop"
                     }
-                    System.out.println(str); // пишем сообщение с сервера на консоль
+                    System.out.println(message.getBody()); // пишем сообщение с сервера на консоль
                 }
             } catch (IOException e) {
                 ClientSomthing.this.downService();
@@ -115,17 +117,29 @@ class ClientSomthing {
         public void run() {
             while (true) {
                 String userWord;
+                Message message;
+                String json;
                 try {
                     time = new Date(); // текущая дата
                     dt1 = new SimpleDateFormat("HH:mm:ss"); // берем только время до секунд
                     dtime = dt1.format(time); // время
                     userWord = inputUser.readLine(); // сообщения с консоли
                     if (userWord.equals("stop")) {
-                        out.writeUTF("stop" + "\n");
-                        ClientSomthing.this.downService(); // харакири
+                        message = new Message(Message.MessageType.LOGOUT, "");
+                        json = gson.toJson(message);
+                        out.writeUTF(json);
+                        out.flush();
+                        socket.close();
                         break; // выходим из цикла если пришло "stop"
+                    }
+                    if (userWord.equals("list")) {
+                        message = new Message(Message.MessageType.REQUEST, "");
+                        json = gson.toJson(message);
+                        out.writeUTF(json);
                     } else {
-                        out.writeUTF("(" + dtime + ") " + nickname + ": " + userWord + "\n"); // отправляем на сервер
+                        message = new Message(Message.MessageType.MESSAGE, userWord);
+                        json = gson.toJson(message);
+                        out.writeUTF(json); // отправляем на сервер
                     }
                     out.flush(); // чистим
                 } catch (IOException e) {
@@ -140,8 +154,8 @@ class ClientSomthing {
 
 public class Client {
 
-    public static String ipAddr = "localhost";
-    public static int port = 8080;
+    public static String ipAddr = "192.168.31.169";
+    public static int port = 6770;
 
     /**
      * создание клиент-соединения с узананными адресом и номером порта

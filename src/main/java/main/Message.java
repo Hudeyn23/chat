@@ -2,8 +2,9 @@ package main;
 
 public class Message {
     public enum MessageType {
-        LOGIN,MESSAGE,ERROR;
+        LOGIN, MESSAGE, INFO, ERROR, REQUEST , LOGOUT;
     }
+
     MessageType type;
     String body;
 
